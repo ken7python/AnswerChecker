@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="ja">
+    <head>
+        <meta charset="utf-8">
+
+        <!--<script src="https://cdn.socket.io/4.6.0/socket.io.min.js" integrity="sha384-c79GN5VsunZvi+Q/WObgk2in0CbZsHnjEqvFxC5DxHn9lTfNce2WW6h2pH6u/kF+" crossorigin="anonymous"></script>-->
+        <script src="socket/socket.io.min.js" ></script>
+        <script src="media/vue.min.js"></script>
+        <link rel="stylesheet" href="media/milligram.min.css">
+        <!--<script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1"></script>-->
+        <script src="chart/chart.js"></script>
+        <style>
+            #agr{
+                background-color: blue;
+            }
+            #oop{
+                background-color: red;
+            }
+            #other{
+                background-color: yellow;
+                color: black;
+            }
+            #ok{
+                background-color: white;
+                color: black;
+            }
+            .comment{
+                width: 600px;
+            }
+            #comOK{
+                background-color:deepskyblue;
+            }
+            #comNo{
+                background-color:darkblue;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="app">
+            <h1>{{ value }}</h1>
+            
+            <div v-if="Vote==null">
+                <button onclick="agr()" id="agr">賛成</button>
+                <button onclick="opp()" id="oop">反対</button>
+                <button onclick="other()" id="other">その他</button>
+            </div>
+            <div v-if="check && Vote==null">
+                <br>
+                <br>
+                <button onclick="OK()" id="ok">決定</button>
+            </div>
+            <h3>{{ Vote }}</h3>
+
+            <div v-if="right == 'host' " >
+                <div style="overflow:hidden">
+                    <div style="width: 35%;float: left;text-align: right;">
+                        <h3 style="color: blue;">賛成：{{ vote.agr }}</h3>
+                        <h3 style="color: red;">反対：{{ vote.oop }}</h3>
+                        <h3 style="color: black;">その他：{{ vote.other }}</h3>
+                    </div>
+                    <div style="width: 65%;float: right;">
+                        <canvas id="circle" width="400" height="400"></canvas>
+                    </div>
+                </div>
+
+                <button v-if="!comOK" class="comment" id="comOK" onclick="commentOK()">コメントを受け付ける</button>
+                <button v-if="comOK" class="comment" id="comNo" onclick="commentNo()">コメントを締め切る</button>
+            </div>
+
+            <div v-if="right == 'host' " style="text-align: left;">
+                <h1>コメント</h1>
+                <ul v-for="message in com" style="font-size: 30px;">
+                    <li>{{message.value}}</li>
+                </ul>
+            </div>
+            <div v-if="comOK">
+                <input id="text" type="text">
+                <button onclick="comSend()">送信</button>
+            </div>
+        </div>
+        <script>
+            let url = new URL(window.location.href);
+            let params = url.searchParams;
+
+            let name = params.get('name');
+            let meeting = params.get('meeting');
+            let question = params.get('question');
+            let right = params.get("right");
+
+            console.log(meeting,question);
+
+            let data = {value: name,vote: [],right: right,Vote: null,check: false,comOK: false,com: [],};
+            var view;
+            view = new Vue({
+                el: "#app",
+                data: data,
+            });
+
+            var kindJap = {
+                agr: "賛成",
+                oop: "反対",
+                other: "その他"
+            }
+            
+            var socket = io();
+
+            var answer = " ";
+
+            function emit(value){
+                var SendData = {kind: value,meet: meeting,question: question};
+                socket.emit('vote', SendData);
+                view.Vote = kindJap[SendData.kind];
+                alert("投票しました。");
+            }
+
+            function agr(){//賛成
+                //emit("agr");
+                ShowCheck("agr");
+            }
+
+            function opp(){//反対
+                //emit("oop");
+                ShowCheck("oop");
+            }
+            function other(){
+                //emit("other");
+                ShowCheck("other");
+            }
+            function ShowCheck(id){
+                document.getElementById("agr").style.backgroundColor = "blue";
+                document.getElementById("oop").style.backgroundColor = "red";
+                document.getElementById("other").style.backgroundColor = "yellow";
+
+                document.getElementById(id).style.backgroundColor = "gray";
+                answer = id;
+                data.check = true;
+                view.data = data;
+            }
+            function OK(){
+                emit(answer);
+            }
+
+            function commentOK(){
+                /*
+                data.comOK = true;
+                view.data = data;
+                */
+
+                const d={
+                    meeting: meeting,
+                    question: question,
+                    OK: true,
+                }
+                socket.emit("comOK",d);
+            }
+            function commentNo(){
+                /*
+                data.comOK = false;
+                view.data = data;
+                */
+                const d={
+                    meeting: meeting,
+                    question: question,
+                    OK: false,
+                }
+                socket.emit("comOK",d);
+            }
+
+            function GetData(){
+                fetch("/vote/" + meeting + "/" + question).then(async function(res){
+                    var value = await res.json();
+                    data.vote = value;
+
+                    view.data = data;
+                    var kindsMap = value.kinds;
+                    console.log(value.kinds);
+                    for(var i=0;i<kindsMap.length;i++){
+                        kindsMap[i] = kindJap[kindsMap[i]];
+                    }
+                    console.log(value);
+
+                    chart.data.datasets[0].data = value.kindsNumber;
+                    chart.data.labels = kindsMap;
+                    chart.data.datasets[0].backgroundColor = ["blue","red","yellow"];
+
+                    chart.update();
+                });
+            }
+
+            function GetCom(){
+                fetch("/com/" + meeting + "/" + question).then(async function(res){
+                    var value = await res.json();
+
+
+                    data.com = value;
+                    view.data = data;
+                });
+            }
+            
+            function comSend(){
+                const value = document.getElementById("text").value;
+
+                const msg = {
+                    value: value,
+                    meeting: meeting,
+                    question: question,
+                }
+                socket.emit("com",msg);
+                document.getElementById("text").value = "";
+            }
+            
+            
+            fetch("/comOK/" + meeting + "/" + question).then(async function(res){
+                var value = await res.json();
+                console.log(value);
+                
+                data.comOK= value;
+                view.data = data;
+            });
+
+            socket.on('vote', function(msg){
+                if (msg == "update"){
+                    console.log("update");
+                    GetData();
+                }
+            });
+
+            socket.on('comOK', function(msg){
+                if (msg.meeting == meeting && msg.question == question){
+                    data.comOK= msg.OK;
+                    view.data = data;
+                }
+            });
+            socket.on('com', function(msg){
+                console.log(msg);
+                if (msg == "update"){
+                    GetCom();
+                }
+            });
+            let context = document.getElementById("circle").getContext('2d')
+            var chart = new Chart(context, {
+                type: 'pie',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        backgroundColor: [],
+                        data: []
+                    }]
+                },
+                options: {
+                    responsive: false,
+                }
+            });
+            GetData();
+            GetCom();
+        </script>
+    </body>
+</html>

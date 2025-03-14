@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ja">
+    <head>
+        <meta charset="utf-8">
+        <!--<script src="https://cdn.socket.io/4.6.0/socket.io.min.js" integrity="sha384-c79GN5VsunZvi+Q/WObgk2in0CbZsHnjEqvFxC5DxHn9lTfNce2WW6h2pH6u/kF+" crossorigin="anonymous"></script>-->
+        <script src="socket/socket.io.min.js" ></script>
+        <link rel="stylesheet" href="media/milligram.min.css">
+        <script src="media/vue.min.js"></script>
+        
+        <script>
+            let url = new URL(window.location.href);
+            let params = url.searchParams;
+            let right = params.get("right");
+            console.log(right)
+
+            var socket = io();
+            let data = {meeting: [],right: right};
+
+            var meeting;
+            
+            function send(){
+                var value = document.getElementById("text").value;
+                console.log(value);
+
+                socket.emit('meeting', value);
+                document.getElementById("text").value = "";
+            };
+            function GetData(){
+                fetch("/data").then(async function(res){
+                    var value = await res.json();
+                    value = value.reverse();
+
+                    data.meeting = value;
+                    console.log(value);
+
+                    meeting.data = data;
+                });
+            }
+
+            socket.on('meeting', function(msg){
+                if (msg == "update"){
+                    console.log("update");
+                    GetData();
+                }
+            });
+            
+
+            fetch("/data").then(async function(res){
+                var value = await res.json();
+                value = value.reverse();
+                data.meeting = value;
+
+                meeting = new Vue({
+                    el: '.container',
+                    data: data
+                });
+            });
+        </script>
+    </head>
+    <body>
+        <div class="container">
+        
+            <h1>会議に参加</h1>
+            
+            <hr>
+
+            <div style="overflow:hidden">
+                <div style="float: left;width: 30%;">
+                    <h1>会議名</h1>
+                </div>
+                <div id="meet" style="float: right;width: 70%;text-align: left;">
+                    <ul v-for="message in meeting">
+                        <a :href=" '/meet.html?name=' + message.name + '&id=' + message.id + '&right=' + right ">{{ message.name }}</a>
+                    </ul>
+                </div>
+
+            </div>
+
+            <hr>
+            <div v-if="right == 'host' " style="float:none;">
+                <h1>会議を作成</h1>
+                <div name="myform">
+                    <input id="text" type="text">
+                    <button onclick="send()">作成</button>
+                </div>
+            </div>
+         
+        </div>
+    </body>
+</html>

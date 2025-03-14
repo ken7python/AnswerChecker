@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ja">
+    <head>
+        <meta charset="utf-8">
+        
+        <!--<script src="https://cdn.socket.io/4.6.0/socket.io.min.js" integrity="sha384-c79GN5VsunZvi+Q/WObgk2in0CbZsHnjEqvFxC5DxHn9lTfNce2WW6h2pH6u/kF+" crossorigin="anonymous"></script>-->
+        <script src="socket/socket.io.min.js" ></script>
+        <script src="media/vue.min.js"></script>
+        <link rel="stylesheet" href="media/milligram.min.css">
+    </head>
+    <body>
+        <div id="app">
+            <h1>{{ name }}</h1>
+            <hr>
+            
+            <ul v-for="(message,index) in question">
+                <a :href=" '/vote.html?name=' + message.value + '&meeting=' + message.id + '&question=' + id + '&right=' + right ">{{question.length - index}}.{{ message.value }}</a>
+            </ul>
+            
+            <hr>
+            <div v-if="right == 'host' ">
+                <h2>質問をする</h2>
+                <div name="myform">
+                    <input id="text" type="text">
+                    <button onclick="send()">作成</button>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            let url = new URL(window.location.href);
+            let params = url.searchParams;
+
+            let name = params.get('name');
+            let id = params.get('id');
+            let right = params.get("right");
+
+            var data = {name: name,question: [], id: id,right: right};
+            
+            var view;
+            view = new Vue({
+                el: "#app",
+                data: data,
+            });
+
+            var socket = io();
+            var meeting;
+            
+            function send(){
+                var value = document.getElementById("text").value;
+                console.log(value);
+
+                var sendData = {value: value,id: id}
+
+                socket.emit('question', sendData);
+                document.getElementById("text").value = "";
+            };
+
+            function GetData(){
+                fetch("/question/" + id).then(async function(res){
+                    var value = await res.json();
+                    value = value.reverse();
+                    data.question = value;
+
+                    view.data = data;
+                });
+            }
+            GetData();
+
+            socket.on('question', function(msg){
+                if (msg == "update"){
+                    console.log("update");
+                    GetData();
+                }
+            });
+        </script>
+    </body>
+</html>
